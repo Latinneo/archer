@@ -17,9 +17,9 @@ abort() {
 
 detect_boot_mode() {
     if ls /sys/firmware/efi/efivars &> /dev/null; then
-        BOOT_MODE="UEFI"
+        BOOT_MODE="efi"
     else
-        BOOT_MODE="BIOS"
+        BOOT_MODE="bios"
     fi
 }
 
@@ -97,13 +97,15 @@ build_filesystem() {
     
     # format partitions
     if [[ "$BOOT_MODE" == "bios" ]]; then
-        if ! mkfs.ext4 ${SELECTED_BLOCK_DEVICE1}1; then
-            dialog --backtitle "ArchLinux Installer" --title " Build filesystem " --msgbox "mkfs.ext4 ${SELECTED_BLOCK_DEVICE1}1 failed" 6 30
-            abort
-        fi
+        echo "${SELECTED_BLOCK_DEVICE}1"
+        # if ! mkfs.ext4 ${SELECTED_BLOCK_DEVICE1}1; then
+        #     dialog --backtitle "ArchLinux Installer" --title " Build filesystem " --msgbox "mkfs.ext4 ${SELECTED_BLOCK_DEVICE1}1 failed" 6 30
+        #     abort
+        # fi
     fi
 
     if [[ "$BOOT_MODE" == "efi" ]]; then
+        echo "will do later"
     fi
 }
 
