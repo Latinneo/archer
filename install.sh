@@ -1,4 +1,5 @@
 #!/bin/bash
+
 PLATFORM = "Intel" # AMD, Intel, Apple
 BOOT_MODE=""
 SELECTED_BLOCK_DEVICE=""
@@ -97,7 +98,7 @@ format_partitions() {
             abort
     fi
 
-    if ! mkfs.btrfs -F -L ROOT "${SELECTED_BLOCK_DEVICE}2"; then
+    if ! mkfs.btrfs -f -L ROOT "${SELECTED_BLOCK_DEVICE}2"; then
             dialog --backtitle "ArchLinux Installer" --title " Build filesystem " --msgbox "mkfs.ext4 ${SELECTED_BLOCK_DEVICE}2 failed" 6 30
             abort
     fi
@@ -292,10 +293,9 @@ case $PLATFORM in
         ;;
 esac    
 
+# generate fstab
+genfstab -U /mnt >> /mnt/etc/fstab
 
-# select boot
-# select_partition
-# get_hostname
-# create_user
-
-# echo -e "block device: $SELECTED_BLOCK_DEVICE\nhostname: $HOSTNAME\n\nfull name: $FULLNAME\nuser: $USER\nshell: $SHELL\ngroups: $USER_GROUPS\npassword: $PASSWORD"
+# execute arch-chroot script
+cp arch-chroot.sh /mnt
+arch-chroot /mnt /mnt/arch-chroot.sh
