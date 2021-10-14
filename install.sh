@@ -97,8 +97,8 @@ build_filesystem() {
     
     # format partitions
     if [[ "$BOOT_MODE" == "bios" ]]; then
-        echo "${SELECTED_BLOCK_DEVICE}1"
-        # if ! mkfs.ext4 ${SELECTED_BLOCK_DEVICE1}1; then
+        mkfs.ext4 ${SELECTED_BLOCK_DEVICE1}1;
+        # if !  then
         #     dialog --backtitle "ArchLinux Installer" --title " Build filesystem " --msgbox "mkfs.ext4 ${SELECTED_BLOCK_DEVICE1}1 failed" 6 30
         #     abort
         # fi
