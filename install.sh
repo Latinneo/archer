@@ -283,10 +283,10 @@ esac
 # install base packages
 case $PLATFORM in
     "AMD")
-        pacstrap /mnt base linux linux-firmware amd-ucode
+        pacstrap /mnt base linux linux-firmware amd-ucode dialog
         ;;
     "Intel")
-        pacstrap /mnt base linux linux-firmware intel-ucode
+        pacstrap /mnt base linux linux-firmware intel-ucode dialog
         ;;
     "Apple")
         # not support at this time
