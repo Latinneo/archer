@@ -122,12 +122,12 @@ mount_partitions() {
     mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@ "${SELECTED_BLOCK_DEVICE}2" /mnt
     mkdir -p /mnt/{boot,home,var/cache,var/log,srv,opt,tmp}
 
-    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@home $root_partition /mnt/home
-    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@var_cache $root_partition /mnt/var/cache
-    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@var_log $root_partition /mnt/var/log
-    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@srv $root_partition /mnt/srv
-    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@opt $root_partition /mnt/opt
-    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@tmp $root_partition /mnt/tmp
+    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@home "${SELECTED_BLOCK_DEVICE}2" /mnt/home
+    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@var_cache "${SELECTED_BLOCK_DEVICE}2" /mnt/var/cache
+    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@var_log "${SELECTED_BLOCK_DEVICE}2" /mnt/var/log
+    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@srv "${SELECTED_BLOCK_DEVICE}2" /mnt/srv
+    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@opt "${SELECTED_BLOCK_DEVICE}2" /mnt/opt
+    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@tmp "${SELECTED_BLOCK_DEVICE}2" /mnt/tmp
     mount "${SELECTED_BLOCK_DEVICE}1" /mnt/boot
 }
 
