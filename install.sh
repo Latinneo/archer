@@ -1,5 +1,5 @@
 #!/bin/bash
-
+PLATFORM = "Intel" # AMD, Intel, Apple
 BOOT_MODE=""
 SELECTED_BLOCK_DEVICE=""
 PARTITIONING_METHOD=""
@@ -97,7 +97,7 @@ format_partitions() {
             abort
     fi
 
-    if ! mkfs.ext4 -F "${SELECTED_BLOCK_DEVICE}2"; then
+    if ! mkfs.btrfs -F -L ROOT "${SELECTED_BLOCK_DEVICE}2"; then
             dialog --backtitle "ArchLinux Installer" --title " Build filesystem " --msgbox "mkfs.ext4 ${SELECTED_BLOCK_DEVICE}2 failed" 6 30
             abort
     fi
@@ -109,11 +109,26 @@ mount_partitions() {
             abort
     fi
 
-    mkdir /mnt/boot
-    if ! mount "${SELECTED_BLOCK_DEVICE}1" /mnt/boot; then
-            dialog --backtitle "ArchLinux Installer" --title " Build filesystem " --msgbox "Can't mount boot partition ${SELECTED_BLOCK_DEVICE}1" 6 30
-            abort
-    fi
+    # create btrfs subvolumes
+    btrfs su cr /mnt/@ 		
+    btrfs su cr /mnt/@home 		
+    btrfs su cr /mnt/@var_cache     # /var/cache
+    btrfs su cr /mnt/@var_log       # /var/log
+    btrfs su cr /mnt/@srv 		
+    btrfs su cr /mnt/@opt 		
+    btrfs su cr /mnt/@tmp 	
+
+    umount -R /mnt
+    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@ "${SELECTED_BLOCK_DEVICE}2" /mnt
+    mkdir -p /mnt/{boot,home,var/cache,var/log,srv,opt,tmp}
+
+    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@home $root_partition /mnt/home
+    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@var_cache $root_partition /mnt/var/cache
+    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@var_log $root_partition /mnt/var/log
+    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@srv $root_partition /mnt/srv
+    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@opt $root_partition /mnt/opt
+    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@tmp $root_partition /mnt/tmp
+    mount "${SELECTED_BLOCK_DEVICE}1" /mnt/boot
 }
 
 build_filesystem() {
@@ -122,6 +137,7 @@ build_filesystem() {
     
     # format partitions
     if [[ "$BOOT_MODE" == "bios" ]]; then
+        umount -R /mnt
         format_partitions
         mount_partitions
     fi
@@ -259,6 +275,20 @@ case $PARTITIONING_METHOD in
             dialog --backtitle "ArchLinux Installer" --title "Access Denied" --msgbox "You don't have permissions to run fdisk" 6 30
             abort
         fi
+        ;;
+esac    
+
+
+# install base packages
+case $PLATFORM in
+    "AMD")
+        pacstrap /mnt base linux linux-firmware amd-ucode
+        ;;
+    "Intel")
+        pacstrap /mnt base linux linux-firmware intel-ucode
+        ;;
+    "Apple")
+        # not support at this time
         ;;
 esac    
 
