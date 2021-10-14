@@ -91,17 +91,39 @@ select_partitioning_method() {
     exec 3>&-
 }
 
+format_partitions() {
+    if ! mkfs.ext4 -F "${SELECTED_BLOCK_DEVICE}1"; then
+            dialog --backtitle "ArchLinux Installer" --title " Build filesystem " --msgbox "mkfs.ext4 ${SELECTED_BLOCK_DEVICE}1 failed" 6 30
+            abort
+    fi
+
+    if ! mkfs.ext4 -F "${SELECTED_BLOCK_DEVICE}2"; then
+            dialog --backtitle "ArchLinux Installer" --title " Build filesystem " --msgbox "mkfs.ext4 ${SELECTED_BLOCK_DEVICE}2 failed" 6 30
+            abort
+    fi
+}
+
+mount_partitions() {
+    if ! mount "${SELECTED_BLOCK_DEVICE}2" /mnt; then
+            dialog --backtitle "ArchLinux Installer" --title " Build filesystem " --msgbox "Can't mount partition ${SELECTED_BLOCK_DEVICE}2" 6 30
+            abort
+    fi
+
+    mkdir /mnt/boot
+    if ! mount "${SELECTED_BLOCK_DEVICE}1" /mnt/boot; then
+            dialog --backtitle "ArchLinux Installer" --title " Build filesystem " --msgbox "Can't mount boot partition ${SELECTED_BLOCK_DEVICE}1" 6 30
+            abort
+    fi
+}
+
 build_filesystem() {
     # partition disk
     cat $BOOT_MODE.fdisk | sed -e 's/\s*\([\+0-9a-zA-Z]*\).*/\1/' | fdisk ${SELECTED_BLOCK_DEVICE}
     
     # format partitions
     if [[ "$BOOT_MODE" == "bios" ]]; then
-        mkfs.ext4 ${SELECTED_BLOCK_DEVICE1}1;
-        # if !  then
-        #     dialog --backtitle "ArchLinux Installer" --title " Build filesystem " --msgbox "mkfs.ext4 ${SELECTED_BLOCK_DEVICE1}1 failed" 6 30
-        #     abort
-        # fi
+        format_partitions
+        mount_partitions
     fi
 
     if [[ "$BOOT_MODE" == "efi" ]]; then
