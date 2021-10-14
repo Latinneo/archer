@@ -146,3 +146,5 @@ get_hostname() {
 # mkinitcpio -p linux 
 
 get_hostname
+
+echo "hostname: $HOSTNAME"
