@@ -298,4 +298,4 @@ genfstab -U /mnt >> /mnt/etc/fstab
 
 # execute arch-chroot script
 cp arch-chroot.sh /mnt
-arch-chroot /mnt arch-chroot.sh
+arch-chroot /mnt ./arch-chroot.sh
