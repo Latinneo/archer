@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PLATFORM = "Intel" # AMD, Intel, Apple
+PLATFORM="Intel" # AMD, Intel, Apple
 BOOT_MODE=""
 SELECTED_BLOCK_DEVICE=""
 PARTITIONING_METHOD=""
