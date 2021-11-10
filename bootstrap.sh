@@ -178,5 +178,10 @@ systemctl enable acpid
 # 11. Enable SDDM, the Plasma desktop environments display manager.
 systemctl enable ssdm
 
+# copy aur.sh to user's home folder
+curl -o /home/ariel/aur.sh -fsSL https://raw.github.com/Latinneo/archer/master/aur.sh
+chown ariel:ariel /home/ariel/aur.sh
+chmod 700 /home/ariel/aur.sh
+
 # Display success
 echo "Installation is complete, you can reboot now!"
