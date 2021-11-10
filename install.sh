@@ -1,301 +1,281 @@
 #!/bin/bash
 
-PLATFORM="Intel" # AMD, Intel, Apple
-BOOT_MODE=""
-SELECTED_BLOCK_DEVICE=""
-PARTITIONING_METHOD=""
-HOSTNAME="zion"
-FULLNAME=""
-USER=""
-USER_GROUPS=""
-SELECTED_SHELL=""
-PASSWORD=""
+# Enable network time synchronization.
+timedatectl set-ntp true
 
-abort() {
-    clear
-    exit 1
-}
+ESP_PARTITION="/dev/nvme0n1p1"
+ROOT_PARTITION="/dev/nvme0n1p4"
 
-detect_boot_mode() {
-    if ls /sys/firmware/efi/efivars &> /dev/null; then
-        BOOT_MODE="efi"
-    else
-        BOOT_MODE="bios"
-    fi
-}
+# Make system partition.
+mkfs.btrfs -L ROOT -f -n 32k /dev/nvme0n1p4
 
-get_hostname() {
+ESP_UUID=$(lsblk -o UUID $ESP_PARTITION | grep -v UUID)
+ROOT_UUID=$(lsblk -o UUID $ROOT_PARTITION | grep -v UUID)
 
-    # open fd
-    exec 3>&1
+# Mount system partition.
+mount UUID=$ROOT_UUID /mnt
 
-    # Store data to $VALUES variable
-    HOSTNAME=$(dialog --ok-label "Submit" \
-        --backtitle "Arch Linux Installer" \
-        --title "Hostname" \
-        --form "Enter computer hostname" 0 0 0 \
-        "Hostname:" 1 1 "$HOSTNAME" 1 18 40 0 \
-    2>&1 1>&3)
+# The root directory is its own subvolume.
+btrfs subvolume create /mnt/@
 
-    # close fd
-    exec 3>&-
-}
+# The .snapshots subvolume will contain snapshots of the root filesystem.
+btrfs subvolume create /mnt/@/.snapshots
 
-select_block_device() {
-    # open fd
-    exec 3>&1
-    local AVAILABLE_BLOCK_DEVICES_RAW=$(lsblk -n -d --output PATH 3>&1 2>&1 1>&3)
-    readarray -t AVAILABLE_BLOCK_DEVICES_ARRAY <<<"$AVAILABLE_BLOCK_DEVICES_RAW"
-    
-    local status="off"
-    local AVAILABLE_BLOCK_DEVICES=()   
-    local DEFAULT_BLOCK_DEVICE="${AVAILABLE_BLOCK_DEVICES_ARRAY[0]}"                                                                                                                                                                                                                             
+# Create a subvolume for the initial snapshot which will be the target of the installation.
+# First a directory inside the /@/.snapshots subvolume (accessed as /mnt/@/.snapshots inside
+# our chroot environment) needs to be created that conforms to Snapper's expectations, which
+# is that there exists a directory with the same name as the snapshot number within the
+# /@/.snapshots subvolume for each snapshot.
+mkdir /mnt/@/.snapshots/1
 
-    for i in "${!AVAILABLE_BLOCK_DEVICES_ARRAY[@]}"; do
-        if [[ "${AVAILABLE_BLOCK_DEVICES_ARRAY[$i]}" == "$DEFAULT_BLOCK_DEVICE" ]]; then
-            status="ON"
-        else
-            status="off"
-        fi
+# Create first snapshot subvolume
+btrfs subvolume create /mnt/@/.snapshots/1/snapshot
 
-        AVAILABLE_BLOCK_DEVICES+=( "$i" "${AVAILABLE_BLOCK_DEVICES_ARRAY[$i]}" $status )
-    done
+# Create a subvolume for the filesystem hierarchy in and under /boot/grub/.
+# This will first require a directory /boot to be created.
+mkdir /mnt/@/boot
 
-    BLOCK_DEVICE_SELECTION=$(dialog --backtitle "ArchLinux Installer" \
-        --title "Device Selection" \
-        --radiolist "Select the device where you want to install ArchLinux" 0 40 0 \
-        "${AVAILABLE_BLOCK_DEVICES[@]}"  \
-    2>&1 1>&3)
+# Create grub subvolume
+btrfs subvolume create /mnt/@/boot/grub
 
-    # close fd
-    exec 3>&-
+# Third-party products usually get installed to /opt. This will exclude /opt and the filesystem
+# hierarchy beneath it to be excluded from snapshots.
+btrfs subvolume create /mnt/@/opt
 
-    if [ ! -z $BLOCK_DEVICE_SELECTION ]; then
-        SELECTED_BLOCK_DEVICE="${AVAILABLE_BLOCK_DEVICES_ARRAY[$BLOCK_DEVICE_SELECTION]}"
-    fi
-}
+# The root users home directory should also be preserved during a rollback.
+btrfs subvolume create /mnt/@/root
 
-select_partitioning_method() {
+# Create the /@/srv subvolume for the filesystem hierarchy under /srv which contains data for
+# Web and FTP servers. It is excluded to avoid data loss on rollbacks.
+btrfs subvolume create /mnt/@/srv
 
-    # open fd
-    exec 3>&1
+# Create the /@/tmp subvolume for the filesystem hierarchy under /tmp which contains temporary
+# files and caches and is excluded from snapshots.
+btrfs subvolume create /mnt/@/tmp
 
-    # Store data to $VALUES variable
-    PARTITIONING_METHOD=$(dialog --backtitle "ArchLinux Installer" \
-        --title " Partition disks " \
-        --radiolist "Select a partitioning method" 0 0 0 \
-        1 "Guided: use entire disk" off \
-        2 "Manual: create your own partitions" ON \
-    2>&1 1>&3)
+# Create a subvolume for filesystem hierarchy in and under /usr/local. This will first require
+# a directory to be created at /@/usr.
+mkdir /mnt/@/usr
 
-    # close fd
-    exec 3>&-
-}
+# Create the subvolume
+btrfs subvolume create /mnt/@/usr/local
 
-format_partitions() {
-    if ! mkfs.ext4 -F "${SELECTED_BLOCK_DEVICE}1"; then
-            dialog --backtitle "ArchLinux Installer" --title " Build filesystem " --msgbox "mkfs.ext4 ${SELECTED_BLOCK_DEVICE}1 failed" 6 30
-            abort
-    fi
+# Create the /@/var/cache subvolume for filesystem hierarchy in and under /var/cache. This will
+# first require a directory to be created at /@/var. where the subvolume will be created. The
+# other subvolumes under /@/var will also be created at this location.
+mkdir /mnt/@/var
 
-    if ! mkfs.btrfs -f -L ROOT "${SELECTED_BLOCK_DEVICE}2"; then
-            dialog --backtitle "ArchLinux Installer" --title " Build filesystem " --msgbox "mkfs.ext4 ${SELECTED_BLOCK_DEVICE}2 failed" 6 30
-            abort
-    fi
-}
+# Create the subvolume
+btrfs subvolume create /mnt/@/var/cache
 
-mount_partitions() {
-    if ! mount "${SELECTED_BLOCK_DEVICE}2" /mnt; then
-            dialog --backtitle "ArchLinux Installer" --title " Build filesystem " --msgbox "Can't mount partition ${SELECTED_BLOCK_DEVICE}2" 6 30
-            abort
-    fi
+# Create the /@/var/log subvolume for filesystem hierarchy in and under /var/log.
+btrfs subvolume create /mnt/@/var/log
 
-    # create btrfs subvolumes
-    btrfs su cr /mnt/@ 		
-    btrfs su cr /mnt/@home 		
-    btrfs su cr /mnt/@var_cache     # /var/cache
-    btrfs su cr /mnt/@var_log       # /var/log
-    btrfs su cr /mnt/@srv 		
-    btrfs su cr /mnt/@opt 		
-    btrfs su cr /mnt/@tmp 	
+# Create the /@/var/spool subvolume for filesystem hierarchy in and under /var/spool.
+btrfs subvolume create /mnt/@/var/spool
 
-    umount -R /mnt
-    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@ "${SELECTED_BLOCK_DEVICE}2" /mnt
-    mkdir -p /mnt/{boot,home,var/cache,var/log,srv,opt,tmp}
+# Create the /@/var/tmp subvolume for filesystem hierarchy in and under /var/tmp
+btrfs subvolume create /mnt/@/var/tmp
 
-    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@home "${SELECTED_BLOCK_DEVICE}2" /mnt/home
-    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@var_cache "${SELECTED_BLOCK_DEVICE}2" /mnt/var/cache
-    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@var_log "${SELECTED_BLOCK_DEVICE}2" /mnt/var/log
-    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@srv "${SELECTED_BLOCK_DEVICE}2" /mnt/srv
-    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@opt "${SELECTED_BLOCK_DEVICE}2" /mnt/opt
-    mount -o noatime,compress=zstd,space_cache=v2,discard=async,subvol=@tmp "${SELECTED_BLOCK_DEVICE}2" /mnt/tmp
-    mount "${SELECTED_BLOCK_DEVICE}1" /mnt/boot
-}
+# Create the /@/var/lib/docker/volumes subvolume for filesystem hierarchy in and under /var/lib/docker/volumes.
+# This will first require a directory to be created at /@/var/lib. where the subvolume will be created.
+# The other subvolumes under /@/var/lib will also be created at this location.
+mkdir -p /mnt/@/var/lib/docker
 
-build_filesystem() {
-    # partition disk
-    cat $BOOT_MODE.fdisk | sed -e 's/\s*\([\+0-9a-zA-Z]*\).*/\1/' | fdisk ${SELECTED_BLOCK_DEVICE}
-    
-    # format partitions
-    if [[ "$BOOT_MODE" == "bios" ]]; then
-        umount -R /mnt
-        format_partitions
-        mount_partitions
-    fi
+# Create the /@/var/lib/docker/volumes subvolume for filesystem hierarchy in and under /var/lib/docker/volumes.
+btrfs subvolume create /mnt/@/var/lib/docker/volumes
 
-    if [[ "$BOOT_MODE" == "efi" ]]; then
-        echo "will do later"
-    fi
-}
+# Create the /@/var/lib/libvirt/images subvolume for filesystem hierarchy in and under /var/lib/libvirt/images.
+# This will first require a directory to be created at /@/var/lib/libvirt. where the subvolume will be created.
+# The other subvolumes under /@/var/lib will also be created at this location.
+mkdir /mnt/@/var/lib/libvirt
 
-select_partition() {
-    # open fd
-    exec 3>&1
-    AVAILABLE_PARTITIONS_RAW=$(lsblk -n -l -o PATH,PARTTYPENAME,TYPE $SELECTED_BLOCK_DEVICE | grep part | awk '{print substr($0, 0, length($0) - 4)}' 3>&1 2>&1 1>&3)
-    readarray -t AVAILABLE_PARTITIONS_ARRAY <<<"$AVAILABLE_PARTITIONS_RAW"
-    status="off"
-    AVAILABLE_PARTITIONS=()   
-    DEFAULT_PARTITION="${AVAILABLE_PARTITIONS_ARRAY[0]}"                                                                                                                                                                                                                             
+# Create the /@/var/lib/libvirt/images subvolue for filesystem hierarchy in and under /var/lib/libvirt/images
+btrfs subvolume create /mnt/@/var/lib/libvirt/images
 
-    for i in "${!AVAILABLE_PARTITIONS_ARRAY[@]}"; do
-        if [[ "${AVAILABLE_PARTITIONS_ARRAY[$i]}" == "$DEFAULT_PARTITION" ]]; then
-            status="ON"
-        else
-            status="off"
-        fi
+# The /@/swap subvolume contains the system swapfile which must be excluded from snapshots.
+btrfs subvolume create /mnt/@/swap
 
-        AVAILABLE_PARTITIONS+=( "$i" "${AVAILABLE_PARTITIONS_ARRAY[$i]}" $status )
-    done
+# Create the /@/home/ariel subvolume for filesystem hierarchy in and under /home/ariel.
+# This will first require a directory to be created at /@/home. where the subvolume will be created.
+mkdir /mnt/@/home
 
-    PARTITION_SELECTION=$(dialog --backtitle "ArchLinux Installer" \
-        --title "Select partition" \
-        --radiolist "Select a partition" 0 0 0 \
-        "${AVAILABLE_PARTITIONS[@]}"  \
-    2>&1 1>&3)
+# Create the /@/home/ariel subvolue for filesystem hierarchy in and under /home/ariel
+btrfs subvolume create /mnt/@/home/ariel
 
-    # close fd
-    exec 3>&-
+# Snapper stores metadata for each snapshot in the snapshot's directory /@/.snapshots/# where "#"
+# represents the snapshot number in an .xml file. For our initial snapshot this will be /@/.snapshots/1
+# One of the metadata items is the snapshot creation time, in the format YYYY-MM-DD HH:MM:SS.
+# The current date and time string in the appropriate format can be obtained with the command:
 
-    echo "${AVAILABLE_PARTITIONS_ARRAY[$PARTITION_SELECTION]}"
-}
+CURRENT_DATE=$(date +"%Y-%m-%d %H:%M:%S")
+echo -e "<?xml version="1.0"?> \n\
+<snapshot> \n\
+	<type>single</type> \n\
+	<num>1</num> \n\
+	<date>$CURRENT_DATE</date> \n\
+	<description>First Root Filesystem Created at Installation</description> \n\
+</snapshot>" >> /mnt/@/.snapshots/1/info.xml
 
-select_shell() {
-    # open fd
-    exec 3>&1
-    AVAILABLE_SHELLS_RAW=$(chsh -l 3>&1 2>&1 1>&3)
-    readarray -t AVAILABLE_SHELLS_ARRAY <<<"$AVAILABLE_SHELLS_RAW"
-    status="off"
-    AVAILABLE_SHELLS=()   
-    DEFAULT_SHELL="/bin/bash"                                                                                                                                                                                                                             
+# Set the default subvolume to the initial installation snapshot.
+btrfs subvolume set-default $(btrfs subvolume list /mnt | grep "@/.snapshots/1/snapshot" | grep -oP '(?<=ID )[0-9]+') /mnt
 
-    for i in "${!AVAILABLE_SHELLS_ARRAY[@]}"; do
-        if [[ "${AVAILABLE_SHELLS_ARRAY[$i]}" == "$DEFAULT_SHELL" ]]; then
-            status="ON"
-        else
-            status="off"
-        fi
+# Enable quotas in the Btrfs filesystem. Quota's are required for the Snapper's snapshot cleanup
+# algorithms that are based on an awareness of space on the filesystem. The Btrfs wiki does list
+# some known issues to be aware of before enabling qgroups. man btrfs-qgroup also has a warning
+#regarding btrfs qgroup
+btrfs quota enable /mnt
 
-        AVAILABLE_SHELLS+=( "$i" "${AVAILABLE_SHELLS_ARRAY[$i]}" $status )
-    done
+# Disable copy-on-write for the /@/var subvolumes this will require the nodatacow mount option,
+# which will disable compression for these subvolumes.
+chattr +C /mnt/@/var/cache
+chattr +C /mnt/@/var/log
+chattr +C /mnt/@/var/spool
+chattr +C /mnt/@/var/tmp
+chattr +C /mnt/@/var/lib/docker/volumes
+chattr +C /mnt/@/var/lib/libvirt/images
 
-    SHELL_SELECTION=$(dialog --backtitle "ArchLinux Installer" \
-        --title "Shell Selection" \
-        --radiolist "Select your user's shell" 0 0 0 \
-        "${AVAILABLE_SHELLS[@]}"  \
-    2>&1 1>&3)
+# Disable copy-on-write for the /@/swap subvolume
+chattr +C /mnt/@/swap
 
-    # close fd
-    exec 3>&-
+# Unmount the Btrfs filesystem.
+umount /mnt
 
-    SELECTED_SHELL="${AVAILABLE_SHELLS_ARRAY[$SHELL_SELECTION]}"
-}
+# Mount the Btrfs filesystem again
+mount UUID=$ROOT_UUID -o noatime,compress=zstd:1,space_cache=v2,discard=async /mnt
 
-get_password() {
-    # open fd
-    exec 3>&1
+# Create mountpoints
+mkdir -p /mnt/{.snapshots,boot/{efi,grub},home/ariel,opt,root,srv,tmp,usr/local,var/{cache,log,spool,tmp,lib/{docker/volumes,libvirt/images}},swap}
 
-    # Store data to $VALUES variable
-    PASSWORD=$(dialog --ok-label "Submit" \
-        --backtitle "Arch Linux Installer" \
-        --title "Set User Password" \
-        --insecure \
-        --clear \
-        --passwordbox "Enter password for $USER" 10 30\
-    2>&1 1>&3)
+# Mount @/.snapshots subvolume
+mount UUID=$ROOT_UUID -o noatime,compress=zstd:1,space_cache=v2,discard=async,discard=async,subvol=@/.snapshots /mnt/.snapshots
 
-    # close fd
-    exec 3>&-
-}
+# Mount the ESP partition.
+mount UUID=$ESP_UUID /mnt/boot/efi
 
-create_user() {
-   
-    # open fd
-    exec 3>&1
+# Mount @/boot/grub subvolume
+mount UUID=$ROOT_UUID -o noatime,compress=zstd:1,space_cache=v2,discard=async,subvol=@/boot/grub /mnt/boot/grub
 
-    USER_DETAILS_FORM=$(dialog --ok-label "Submit" \
-        --backtitle "Arch Linux Installer" \
-        --title "Add User" \
-        --form "Create a new user" 0 0 0 \
-            "Full name:"        1 1 "$FULLNAME" 1 18 40 0  \
-            "Username:"         2 1	"$USER" 	2 18 40 0  \
-            "Groups:"           3 1	"$USER_GROUPS"  	3 18 40 0 \
-    2>&1 1>&3)
+# Mount the @/home/ariel subvolume
+mount UUID=$ROOT_UUID -o noatime,compress=zstd:1,space_cache=v2,discard=async,subvol=@/home/ariel /mnt/home/ariel
 
-    # close fd
-    exec 3>&-
+# Mount @/home/ariel subvolume
+mount UUID=$ROOT_UUID -o noatime,compress=zstd:1,space_cache=v2,discard=async,subvol=@/home/ariel /mnt/home/ariel
 
-    readarray -t USER_DETAILS <<<"$USER_DETAILS_FORM"
-    FULLNAME="${USER_DETAILS[0]}"
-    USER="${USER_DETAILS[1]}"
-    USER_GROUPS="${USER_DETAILS[2]}"
+# Mount @/opt subvolume
+mount UUID=$ROOT_UUID -o noatime,compress=zstd:1,space_cache=v2,discard=async,subvol=@/opt /mnt/opt
 
-    select_shell
-    get_password
-}
+# Mount @/root subvolume
+mount UUID=$ROOT_UUID -o noatime,compress=zstd:1,space_cache=v2,discard=async,subvol=@/root /mnt/root
 
-detect_boot_mode
-echo "Detected boot mode: $BOOT_MODE"
+# Mount @/srv subvolume
+mount UUID=$ROOT_UUID -o noatime,compress=zstd:1,space_cache=v2,discard=async,subvol=@/srv /mnt/srv
 
-select_block_device
-if [ -z "$SELECTED_BLOCK_DEVICE" ]; then
-    abort
-fi
+# Mount @/tmp subvolume
+mount UUID=$ROOT_UUID -o noatime,compress=zstd:1,space_cache=v2,discard=async,subvol=@/tmp /mnt/tmp
 
-select_partitioning_method
-if [ -z "$PARTITIONING_METHOD" ]; then
-    abort
-fi
+# Mount the @/usr/local subvolume
+mount UUID=$ROOT_UUID -o noatime,compress=zstd:1,space_cache=v2,discard=async,subvol=@/usr/local /mnt/usr/local
 
-case $PARTITIONING_METHOD in
-    1)
-        build_filesystem
-        ;;
-    2)
-        clear
-        if ! fdisk $SELECTED_BLOCK_DEVICE 2> /dev/null; then
-            dialog --backtitle "ArchLinux Installer" --title "Access Denied" --msgbox "You don't have permissions to run fdisk" 6 30
-            abort
-        fi
-        ;;
-esac    
+# Mount the @/var/cache subvolume
+mount UUID=$ROOT_UUID -o noatime,nodatacow,discard=async,subvol=@/var/cache /mnt/var/cache
 
+# Mount the @/var/log subvolume
+mount UUID=$ROOT_UUID -o noatime,nodatacow,discard=async,subvol=@/var/log /mnt/var/log
 
-# install base packages
-case $PLATFORM in
-    "AMD")
-        pacstrap /mnt base linux linux-firmware amd-ucode dialog
-        ;;
-    "Intel")
-        pacstrap /mnt base linux linux-firmware intel-ucode dialog
-        ;;
-    "Apple")
-        # not support at this time
-        ;;
-esac    
+# Mount the @/var/spool subvolume
+mount UUID=$ROOT_UUID -o noatime,nodatacow,discard=async,subvol=@/var/spool /mnt/var/spool
 
-# generate fstab
+# Mount the @/var/tmp subvolume
+mount UUID=$ROOT_UUID -o noatime,nodatacow,discard=async,subvol=@/var/tmp /mnt/var/tmp
+
+# Mount the @/var/lib/docker/volumes subvolume
+mount UUID=$ROOT_UUID -o noatime,nodatacow,discard=async,subvol=@/var/lib/docker/volumes /mnt/var/lib/docker/volumes
+
+# Mount the @/var/lib/libvirt/images subvolume
+mount UUID=$ROOT_UUID -o noatime,nodatacow,discard=async,subvol=@/var/lib/libvirt/images /mnt/var/lib/libvirt/images
+
+# Mount the @/swap subvolume
+mount UUID=$ROOT_UUID -o noatime,nodatacow,discard=async,subvol=@/swap /mnt/swap
+
+# Create swapfile
+truncate -s 0 /mnt/swap/swapfile
+chattr +C /mnt/swap/swapfile
+btrfs property set /mnt/swap/swapfile compression none
+dd if=/dev/zero of=/mnt/swap/swapfile bs=1M count=2048 status=progress
+chmod 600 /mnt/swap/swapfile
+mkswap /mnt/swap/swapfile
+swapon /mnt/swap/swapfile
+
+# Install the base system
+pacstrap /mnt base linux linux-firmware amd-ucode vim
+
+# Install filesystem related tools
+pacstrap /mnt btrfs-progs ntfs-3g mtools dosfstools nfs-utils
+
+# Install booting related packages
+pacstrap /mnt grub grub-btrfs os-prober efibootmgr
+
+# Install hardware management packages
+pacstrsap /mnt acpi acpi_call acpid lm_sensors usbutils
+
+# Install networking related packages
+pacstrap /mnt networkmanager network-manager-applet wpa_supplicant avahi inetutils dnsutils nss-mdns openssh reflector
+
+# Install snapper and snap-pac, which automatically makes Snapper snapshots after package manager transactions.
+pacstrap /mnt snapper snap-pac
+
+# Install video drivers
+pacstrap /mnt xf86-video-amdgpu
+
+# Install sound related packages
+pacstrap pipewire alsa-utils alsa-plugins pipewire-alsa pipewire-pulse pipewire-jack sof-firmware
+
+# Install bluetooth
+pacstrap /mnt bluez bluez-utils
+
+# Install cups
+pacstrap /mnt cups cups-pdf
+
+# Install the X Window System and X Window System applications
+pacstrap /mnt xorg-server xorg-apps
+
+# Install XDG related packages
+pacstrap /mnt xdg-user-dirs xdg-utils
+
+# Install fonts
+pacstrap /mnt gnu-free-fonts noto-fonts ttf-bitstream-vera ttf-caladea ttf-carlito ttf-croscore ttf-dejavu ttf-hack opendesktop-fonts ttf-anonymous-pro ttf-arphic-ukai ttf-arphic-uming ttf-baekmuk ttf-cascadia-code ttf-cormorant ttf-droid ttf-eurof ttf-fantasque-sans-mono ttf-fira-code ttf-fira-mono ttf-fira-sans ttf-font-awesome ttf-hanazono ttf-hannom ttf-ibm-plex ttf-inconsolata ttf-indic-otf ttf-input ttf-ionicons ttf-iosevka-nerd ttf-jetbrains-mono ttf-joypixels ttf-junicode ttf-khmer ttf-lato ttf-liberation ttf-linux-libertine ttf-linux-libertine-g ttf-monofur ttf-monoid ttf-nerd-fonts-symbols ttf-opensans ttf-proggy-clean ttf-roboto ttf-roboto-mono ttf-sarasa-gothic ttf-sazanami ttf-tibetan-machine ttf-ubuntu-font-family
+
+# Install Plasma and some KDE applications
+pacstrap /mnt plasma-meta plasma-wayland-session kde-utilities kde-system dolphin-plugins kde-graphics
+
+# Install virtual machine management packages
+pacstrap /mnt virt-manager qemu qemu-arch-extra edk2-ovmf bridge-utils dnsmasq vde2 openbsd-netcat
+
+# Install firewall
+pacstrap firewalld ipset iptables-ntf
+
+# Install development related packages
+pacstrap /mnt base-devel linux-headers git github-cli docker docker-compose dotnet-sdk-3.1 aspnet-runtime-3.1
+
+# Install application sandboxing
+pacstrap /mnt flatpak
+
+# Install additional programs
+pacstrap /mnt bash-completion zsh neofetch htop rsync obs-studio
+
+# Install packages for accessing man and texinfo pages
+pacstrap /mnt man-db man-pages texinfo
+
+# Generate fstab
 genfstab -U /mnt >> /mnt/etc/fstab
 
+# Remove the subvolume identification from the subvolume mounted to /
+sed -i 's/,subvolid=258,subvol=\/@\/.snapshots\/1\/snapshot//' /mnt/etc/fstab
+
+# Remove rootflags
+sed -i 's/rootflags=subvol=${rootsubvol}\s//' /etc/grub.d/10_linux
+sed -i 's/rootflags=subvol=${rootsubvol}\s//' /etc/grub.d/20_linux_xen
+
 # execute arch-chroot script
-cp arch-chroot.sh /mnt
-arch-chroot /mnt ./arch-chroot.sh
+arch-chroot /mnt sh -c "$(curl -fsSL https://raw.github.com/Latinneo/archer/master/bootstrap.sh)"
