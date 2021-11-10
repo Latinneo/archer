@@ -77,11 +77,13 @@ chmod 750 /.snapshots
 
 # Install Bootloader
 ##########################################################################################################
+# 1. Enable os-prober
+echo -e '\nGRUB_DISABLE_OS_PROBER=false' >> /etc/default/grub
 
-# 1. Install the GRUB firmware bootloader on the ESP.
+# 2. Install the GRUB firmware bootloader on the ESP.
 grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ARCH-ZION --modules="normal test efi_gop efi_uga search echo linux all_video gfxmenu gfxterm_background gfxterm_menu gfxterm loadenv configfile gzio part_gpt btrfs"
 
-# 2. Update the GRUB configuration.
+# 3. Update the GRUB configuration.
 grub-mkconfig -o /boot/grub/grub.cfg
 
 
@@ -138,6 +140,8 @@ done
 
 echo $USER_NAME:$USER_PASSWORD_1 | chpasswd
 
+sensors-detect --auto
+
 # Configure and Enable Services
 ##########################################################################################################
 
@@ -179,9 +183,9 @@ systemctl enable acpid
 systemctl enable ssdm
 
 # copy aur.sh to user's home folder
-curl -o /home/ariel/aur.sh -fsSL https://raw.github.com/Latinneo/archer/master/aur.sh
-chown ariel:ariel /home/ariel/aur.sh
-chmod 700 /home/ariel/aur.sh
+curl -o /home/ariel/aur.sh -fsSL https://raw.github.com/Latinneo/archer/master/finalize.sh
+chown ariel:ariel /home/ariel/finalize.sh
+chmod 700 /home/ariel/finalize.sh
 
 # Display success
 echo "Installation is complete, you can reboot now!"

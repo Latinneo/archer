@@ -277,5 +277,11 @@ sed -i 's/,subvolid=258,subvol=\/@\/.snapshots\/1\/snapshot//' /mnt/etc/fstab
 sed -i 's/rootflags=subvol=${rootsubvol}\s//' /etc/grub.d/10_linux
 sed -i 's/rootflags=subvol=${rootsubvol}\s//' /etc/grub.d/20_linux_xen
 
+# Davinci Resolve interfaces the ALSA directly, so we need to redirect it to use PulseAudio
+echo -e "pcm.!default pulse\nctl.!default pulse" >> /etc/asound.conf
+
+# Ensure modules are loaded in the correct order to uensure pwmconfig configuration is always up-to-date
+echo -e "iwlwifi\nnct6775\nhid_logitech_hidpp" >> /etc/modules-load.d/hwmon.conf
+
 # execute arch-chroot script
 arch-chroot /mnt sh -c "$(curl -fsSL https://raw.github.com/Latinneo/archer/master/bootstrap.sh)"

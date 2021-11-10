@@ -44,13 +44,18 @@ sudo pacman -Syy
 # Install AUR packages and applications
 paru -Sa amdgpu-pro-libgl lib32-amdgpu-pro-libgl opencl-amd decklink davinci-resolve-studio slack-desktop visual-studio-code-bin ttf-meslo-nerd-font-powerlevel10k nvm microsoft-edge-stable-bin teamredminer-bin 1password brother-hll2350dw zoom-system-qt
 
+# Workaround for using proprietary OpenGL wtih Davinci Resolve
+install /usr/share/applications/com.blackmagicdesign.resolve.desktop ~/.local/share/applications/com.blackmagicdesign.resolve.desktop
+sed -i 's/Exec=\/opt\/resolve\/bin\/resolve %u/Exec=progl \/opt\/resolve\/bin\/resolve/' ~/.local/share/applications/com.blackmagicdesign.resolve.desktop
+
+# Enable wayland for electron apps
 echo -e "--enable-features=UseOzonePlatform\t--ozone-platform=wayland" >> ~/.config/electron-flags.conf
 
 # Install Oh-My-Zsh
 sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
 
 # Install Oh-My-Zsh plugins
-
+##########################################################################################################
 #   1. install zsh-autosuggestions
 git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
 
