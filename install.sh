@@ -238,6 +238,9 @@ pacstrap /mnt cups cups-pdf
 # Install firewall
 pacstrap /mnt firewalld ipset iptables-nft
 
+# Install virtual machine management packages
+pacstrap /mnt virt-manager qemu qemu-arch-extra edk2-ovmf bridge-utils dnsmasq vde2 openbsd-netcat
+
 # Install development related packages
 pacstrap /mnt git github-cli docker docker-compose dotnet-sdk-3.1 aspnet-runtime-3.1
 
@@ -263,6 +266,12 @@ echo -e "pcm.!default pulse\nctl.!default pulse" >> /mnt/etc/asound.conf
 # Ensure modules are loaded in the correct order to uensure pwmconfig configuration is always up-to-date
 echo -e "iwlwifi\nnct6775\nhid_logitech_hidpp" >> /mnt/etc/modules-load.d/hwmon.conf
 
-# execute arch-chroot script
+# Execute arch-chroot script
 arch-chroot /mnt sh -c "$(curl -fsSL https://raw.github.com/Latinneo/archer/master/bootstrap.sh)"
 
+# Turn swap off and umount everything
+swapoff /mnt/swap/swapfile
+umount -R /mnt
+
+# Display success
+echo "Installation is complete, you can reboot now!"

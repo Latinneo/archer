@@ -149,7 +149,10 @@ systemctl enable sshd
 # 7. Enable avahi
 systemctl enable avahi-daemon
 
-# 8. Configure and enable reflector (via timer)
+# 8. Enable libvirtd
+systemctl enable libvirtd.service
+
+# 9. Configure and enable reflector (via timer)
 sed -i 's/#--country.*/--country US/' /etc/xdg/reflector/reflector.conf
 systemctl enable reflector.timer
 
@@ -160,6 +163,3 @@ systemctl enable containerd.service
 
 # 11. Enable acpid
 systemctl enable acpid
-
-# Display success
-echo "Installation is complete, you can reboot now!"
