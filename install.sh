@@ -215,22 +215,22 @@ pacstrap /mnt base linux linux-firmware amd-ucode vim btrfs-progs ntfs-3g
 pacstrap /mnt mtools dosfstools nfs-utils
 
 # Install booting related packages
-pacstrap /mnt grub grub-btrfs os-prober efibootmgr
+pacstrap -i /mnt grub grub-btrfs os-prober efibootmgr
 
 # Install hardware management packages
 pacstrap /mnt acpi acpi_call acpid lm_sensors usbutils
 
 # Install networking related packages
-pacstrap /mnt networkmanager network-manager-applet wpa_supplicant avahi inetutils dnsutils nss-mdns openssh reflector
+pacstrap -i /mnt networkmanager network-manager-applet wpa_supplicant avahi inetutils dnsutils nss-mdns openssh reflector
 
 # Install snapper and snap-pac, which automatically makes Snapper snapshots after package manager transactions.
-pacstrap /mnt snapper snap-pac
+pacstrap -i /mnt snapper snap-pac
 
 # Install video drivers
 pacstrap /mnt xf86-video-amdgpu
 
 # Install bluetooth
-pacstrap /mnt bluez bluez-utils
+pacstrap -i /mnt bluez bluez-utils
 
 # Install cups
 pacstrap /mnt cups cups-pdf

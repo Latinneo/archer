@@ -123,6 +123,7 @@ useradd -mG wheel,docker -s $(which zsh) -c "$USER_DESCRIPTION" $USER_NAME
 
 # 4. Set User's Password
 echo -e "Setting password for user '$USER_NAME'...\n"
+
 passwd $USER_NAME
 
 # Configure and Enable Services
