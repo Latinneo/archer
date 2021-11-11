@@ -2,6 +2,27 @@
 ROOT_PARTITION="/dev/nvme0n1p4"
 ROOT_UUID=$(lsblk -o UUID $ROOT_PARTITION | grep -v UUID)
 
+# Install sound related packages
+sudo pacman -Sy pipewire alsa-utils alsa-plugins pipewire-alsa pipewire-pulse pipewire-jack sof-firmware
+
+# Install the X Window System and X Window System applications
+sudo pacman -Sy xorg-server xorg-apps
+
+# Install XDG related packages
+sudo pacman -Sy xdg-user-dirs xdg-utils
+
+# Install fonts
+sudo pacman -Sy gnu-free-fonts noto-fonts ttf-bitstream-vera ttf-caladea ttf-carlito ttf-croscore ttf-dejavu ttf-hack opendesktop-fonts ttf-anonymous-pro ttf-arphic-ukai ttf-arphic-uming ttf-baekmuk ttf-cascadia-code ttf-cormorant ttf-droid ttf-eurof ttf-fantasque-sans-mono ttf-fira-code ttf-fira-mono ttf-fira-sans ttf-font-awesome ttf-hanazono ttf-hannom ttf-ibm-plex ttf-inconsolata ttf-indic-otf ttf-input ttf-ionicons ttf-iosevka-nerd ttf-jetbrains-mono ttf-joypixels ttf-junicode ttf-khmer ttf-lato ttf-liberation ttf-linux-libertine ttf-linux-libertine-g ttf-monofur ttf-monoid ttf-nerd-fonts-symbols ttf-opensans ttf-proggy-clean ttf-roboto ttf-roboto-mono ttf-sarasa-gothic ttf-sazanami ttf-tibetan-machine ttf-ubuntu-font-family
+
+# Install Plasma and some KDE applications
+sudo pacman -S plasma-meta plasma-wayland-session kde-utilities kde-system dolphin-plugins kde-graphics
+
+# Install virtual machine management packages
+sudo pacman -Sy virt-manager qemu qemu-arch-extra edk2-ovmf bridge-utils dnsmasq vde2 openbsd-netcat
+
+# Install other applications
+sudo pacman -Sy obs-studio
+
 # Enable AUR Helper
 git clone https://aur.archlinux.org/paru.git
 cd paru
@@ -16,17 +37,17 @@ sudo systemctl enable fstrim.timer
 # Enable Periodic Execution of btrfs scrub
 UNIT_NAME=$(sudo systemd-escape --template btrfs-scrub@.timer --path /dev/disk/by-uuid/$ROOT_UUID)
 sudo systemctl enable --now $UNIT_NAME
-btrfs scrub start
+sudo btrfs scrub start
 
 # Edit Snapper Configuration
-sed -i 's/QGROUP=""/QGROUP="1\/0"/' /etc/snappper/configs/root
-sed -i 's/NUMBER_LIMIT="50"/NUMBER_LIMIT="10-35"/' /etc/snappper/configs/root
-sed -i 's/NUMBER_LIMIT_IMPORTANT="50"/NUMBER_LIMIT_IMPORTANT="15-25"/' /etc/snappper/configs/root
-sed -i 's/TIMELINE_LIMIT_HOURLY="10"/TIMELINE_LIMIT_HOURLY="5"/' /etc/snappper/configs/root
-sed -i 's/TIMELINE_LIMIT_DAILY="10"/TIMELINE_LIMIT_DAILY="5"/' /etc/snappper/configs/root
-sed -i 's/TIMELINE_LIMIT_WEEKLY="0"/TIMELINE_LIMIT_WEEKLY="2"/' /etc/snappper/configs/root
-sed -i 's/TIMELINE_LIMIT_MONTHLY="10"/TIMELINE_LIMIT_MONTHLY="3"/' /etc/snappper/configs/root
-sed -i 's/TIMELINE_LIMIT_YEARLY="10"/TIMELINE_LIMIT_YEARLY="0"/' /etc/snappper/configs/root
+sudo sed -i 's/QGROUP=""/QGROUP="1\/0"/' /etc/snappper/configs/root
+sudo sed -i 's/NUMBER_LIMIT="50"/NUMBER_LIMIT="10-35"/' /etc/snappper/configs/root
+sudo sed -i 's/NUMBER_LIMIT_IMPORTANT="50"/NUMBER_LIMIT_IMPORTANT="15-25"/' /etc/snappper/configs/root
+sudo sed -i 's/TIMELINE_LIMIT_HOURLY="10"/TIMELINE_LIMIT_HOURLY="5"/' /etc/snappper/configs/root
+sudo sed -i 's/TIMELINE_LIMIT_DAILY="10"/TIMELINE_LIMIT_DAILY="5"/' /etc/snappper/configs/root
+sudo sed -i 's/TIMELINE_LIMIT_WEEKLY="0"/TIMELINE_LIMIT_WEEKLY="2"/' /etc/snappper/configs/root
+sudo sed -i 's/TIMELINE_LIMIT_MONTHLY="10"/TIMELINE_LIMIT_MONTHLY="3"/' /etc/snappper/configs/root
+sudo sed -i 's/TIMELINE_LIMIT_YEARLY="10"/TIMELINE_LIMIT_YEARLY="0"/' /etc/snappper/configs/root
 
 # Enable timeline snapshots timer.
 sudo systemctl enable --now snapper-timeline.timer

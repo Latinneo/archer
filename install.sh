@@ -208,61 +208,40 @@ mkswap /mnt/swap/swapfile
 swapon /mnt/swap/swapfile
 
 # Install the base system
-pacstrap /mnt base linux linux-firmware amd-ucode vim
+pacstrap -i /mnt base linux linux-firmware amd-ucode vim btrfs-progs ntfs-3g
 
 # Install filesystem related tools
-pacstrap /mnt btrfs-progs ntfs-3g mtools dosfstools nfs-utils
+pacstrap -i /mnt mtools dosfstools nfs-utils
 
 # Install booting related packages
-pacstrap /mnt grub grub-btrfs os-prober efibootmgr
+pacstrap -i /mnt grub grub-btrfs os-prober efibootmgr
 
 # Install hardware management packages
-pacstrsap /mnt acpi acpi_call acpid lm_sensors usbutils
+pacstrsap -i /mnt acpi acpi_call acpid lm_sensors usbutils
 
 # Install networking related packages
-pacstrap /mnt networkmanager network-manager-applet wpa_supplicant avahi inetutils dnsutils nss-mdns openssh reflector
+pacstrap -i /mnt networkmanager network-manager-applet wpa_supplicant avahi inetutils dnsutils nss-mdns openssh reflector
 
 # Install snapper and snap-pac, which automatically makes Snapper snapshots after package manager transactions.
-pacstrap /mnt snapper snap-pac
+pacstrap -i /mnt snapper snap-pac
 
 # Install video drivers
-pacstrap /mnt xf86-video-amdgpu
-
-# Install sound related packages
-pacstrap pipewire alsa-utils alsa-plugins pipewire-alsa pipewire-pulse pipewire-jack sof-firmware
+pacstrap -i /mnt xf86-video-amdgpu
 
 # Install bluetooth
-pacstrap /mnt bluez bluez-utils
+pacstrap -i /mnt bluez bluez-utils
 
 # Install cups
-pacstrap /mnt cups cups-pdf
-
-# Install the X Window System and X Window System applications
-pacstrap /mnt xorg-server xorg-apps
-
-# Install XDG related packages
-pacstrap /mnt xdg-user-dirs xdg-utils
-
-# Install fonts
-pacstrap /mnt gnu-free-fonts noto-fonts ttf-bitstream-vera ttf-caladea ttf-carlito ttf-croscore ttf-dejavu ttf-hack opendesktop-fonts ttf-anonymous-pro ttf-arphic-ukai ttf-arphic-uming ttf-baekmuk ttf-cascadia-code ttf-cormorant ttf-droid ttf-eurof ttf-fantasque-sans-mono ttf-fira-code ttf-fira-mono ttf-fira-sans ttf-font-awesome ttf-hanazono ttf-hannom ttf-ibm-plex ttf-inconsolata ttf-indic-otf ttf-input ttf-ionicons ttf-iosevka-nerd ttf-jetbrains-mono ttf-joypixels ttf-junicode ttf-khmer ttf-lato ttf-liberation ttf-linux-libertine ttf-linux-libertine-g ttf-monofur ttf-monoid ttf-nerd-fonts-symbols ttf-opensans ttf-proggy-clean ttf-roboto ttf-roboto-mono ttf-sarasa-gothic ttf-sazanami ttf-tibetan-machine ttf-ubuntu-font-family
-
-# Install Plasma and some KDE applications
-pacstrap /mnt plasma-meta plasma-wayland-session kde-utilities kde-system dolphin-plugins kde-graphics
-
-# Install virtual machine management packages
-pacstrap /mnt virt-manager qemu qemu-arch-extra edk2-ovmf bridge-utils dnsmasq vde2 openbsd-netcat
+pacstrap -i /mnt cups cups-pdf
 
 # Install firewall
-pacstrap firewalld ipset iptables-ntf
+pacstrap -i /mnt firewalld ipset iptables-ntf
 
 # Install development related packages
-pacstrap /mnt base-devel linux-headers git github-cli docker docker-compose dotnet-sdk-3.1 aspnet-runtime-3.1
-
-# Install application sandboxing
-pacstrap /mnt flatpak
+pacstrap -i /mnt git github-cli docker docker-compose dotnet-sdk-3.1 aspnet-runtime-3.1
 
 # Install additional programs
-pacstrap /mnt bash-completion zsh neofetch htop rsync obs-studio
+pacstrap -i /mnt base-devel linux-headers bash-completion zsh neofetch htop rsync
 
 # Install packages for accessing man and texinfo pages
 pacstrap /mnt man-db man-pages texinfo
@@ -274,14 +253,14 @@ genfstab -U /mnt >> /mnt/etc/fstab
 sed -i 's/,subvolid=258,subvol=\/@\/.snapshots\/1\/snapshot//' /mnt/etc/fstab
 
 # Remove rootflags
-sed -i 's/rootflags=subvol=${rootsubvol}\s//' /etc/grub.d/10_linux
-sed -i 's/rootflags=subvol=${rootsubvol}\s//' /etc/grub.d/20_linux_xen
+sed -i 's/rootflags=subvol=${rootsubvol}\s//' /mnt/etc/grub.d/10_linux
+sed -i 's/rootflags=subvol=${rootsubvol}\s//' /mnt/etc/grub.d/20_linux_xen
 
 # Davinci Resolve interfaces the ALSA directly, so we need to redirect it to use PulseAudio
-echo -e "pcm.!default pulse\nctl.!default pulse" >> /etc/asound.conf
+echo -e "pcm.!default pulse\nctl.!default pulse" >> /mnt/etc/asound.conf
 
 # Ensure modules are loaded in the correct order to uensure pwmconfig configuration is always up-to-date
-echo -e "iwlwifi\nnct6775\nhid_logitech_hidpp" >> /etc/modules-load.d/hwmon.conf
+echo -e "iwlwifi\nnct6775\nhid_logitech_hidpp" >> /mnt/etc/modules-load.d/hwmon.conf
 
 # execute arch-chroot script
 arch-chroot /mnt sh -c "$(curl -fsSL https://raw.github.com/Latinneo/archer/master/bootstrap.sh)"
